@@ -191,8 +191,16 @@ function finish() {
   if (st.phase === 'focus') record(elapsed(), false);
   clearTimer(); if (linked()) musicPause(); render();
 }
+/* 노션 임베드에서는 confirm 팝업이 차단되므로, 버튼을 두 번 눌러 초기화 */
+let resetArmed = null;
 function reset() {
-  if (elapsed() > 60 && !confirm('기록하지 않고 초기화할까요?')) return;
+  const b = $('bReset');
+  if (elapsed() > 60 && !resetArmed) {
+    b.textContent = '한 번 더'; b.style.color = 'var(--break)';
+    resetArmed = setTimeout(() => { resetArmed = null; b.textContent = '초기화'; b.style.color = ''; }, 3000);
+    return;
+  }
+  clearTimeout(resetArmed); resetArmed = null; b.textContent = '초기화'; b.style.color = '';
   clearTimer(); if (linked()) musicPause(); render();
 }
 function setMode(m) {
