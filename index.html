@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study Timer</title>
+<style>
+  :root{
+    --bg:#ffffff; --card:#f7f6f3; --text:#37352f; --muted:#787774; --line:#e6e5e1;
+    --accent:#2f6f5e; --accent-soft:#e1eee8; --break:#b8742a; --break-soft:#f6ead9;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#191919; --card:#232323; --text:#e6e6e4; --muted:#9b9a97; --line:#333331;
+      --accent:#5fb39b; --accent-soft:#1d332d; --break:#e0a35e; --break-soft:#3a2c1b;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:14px}
+  .wrap{display:grid;grid-template-columns:1fr 1.25fr;gap:14px;padding:14px;max-width:980px;margin:0 auto}
+  @media (max-width:720px){.wrap{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:12px}
+  .title{font-weight:700;font-size:15px}
+  .sub{color:var(--muted);font-size:12px}
+  .seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--muted);padding:5px 12px;border-radius:999px;cursor:pointer;font:inherit;font-size:12px}
+  .seg button.on{background:var(--accent);color:#fff}
+  .seg button:disabled{cursor:not-allowed;opacity:.5}
+  .ringbox{position:relative;width:190px;height:190px;margin:4px auto 10px}
+  .ringbox svg{transform:rotate(-90deg)}
+  .ring-bg{stroke:var(--line)} .ring-fg{stroke:var(--accent);transition:stroke-dashoffset .3s linear}
+  .break .ring-fg{stroke:var(--break)}
+  .clock{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .time{font-size:38px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:.5px}
+  .phase{font-size:12px;padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent);margin-top:4px}
+  .break .phase{background:var(--break-soft);color:var(--break)}
+  input.tag{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);font:inherit;margin-bottom:10px}
+  .btns{display:flex;gap:8px}
+  .btn{flex:1;border:1px solid var(--line);background:var(--bg);color:var(--text);padding:9px 0;border-radius:9px;cursor:pointer;font:inherit;font-weight:600}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn:hover{filter:brightness(.97)}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+  .stat{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .stat b{display:block;font-size:17px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .sessions{list-style:none;margin:12px 0 0;padding:0;max-height:120px;overflow:auto}
+  .sessions li{display:flex;justify-content:space-between;gap:8px;padding:5px 2px;border-bottom:1px dashed var(--line);font-size:12px}
+  .sessions li span:first-child{color:var(--muted);white-space:nowrap}
+  .sessions li span:nth-child(2){flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .player{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
+  .player>*{position:absolute;inset:0;width:100%;height:100%}
+  .tracks{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+  .tracks li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--bg);border:1px solid var(--line);cursor:pointer}
+  .tracks li.on{border-color:var(--accent);background:var(--accent-soft)}
+  .tracks .no{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--line);font-size:11px;font-weight:700;flex:none}
+  .tracks li.on .no{background:var(--accent);color:#fff}
+  .tracks .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tracks .g{color:var(--muted);font-size:11px}
+  .row{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .switch{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section class="card" id="timerCard">
+    <div class="head">
+      <div class="title">공부 타이머</div>
+      <div class="seg">
+        <button id="mStop">스톱워치</button>
+        <button id="mPomo">포모도로</button>
+      </div>
+    </div>
+
+    <div class="ringbox">
+      <svg width="190" height="190" viewBox="0 0 190 190">
+        <circle class="ring-bg" cx="95" cy="95" r="84" fill="none" stroke-width="10"/>
+        <circle class="ring-fg" id="ring" cx="95" cy="95" r="84" fill="none" stroke-width="10" stroke-linecap="round"/>
+      </svg>
+      <div class="clock">
+        <div class="time" id="time">0:00</div>
+        <div class="phase" id="phase">대기 중</div>
+      </div>
+    </div>
+
+    <input class="tag" id="tag" placeholder="지금 공부하는 것 (선택) 예: 논문 리비전" maxlength="40">
+
+    <div class="btns">
+      <button class="btn primary" id="bStart">시작</button>
+      <button class="btn" id="bFinish">종료·기록</button>
+      <button class="btn" id="bReset">초기화</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><span class="sub">오늘</span><b id="sToday">0분</b></div>
+      <div class="stat"><span class="sub">포모도로</span><b id="sPomo">0개</b></div>
+      <div class="stat"><span class="sub">최근 7일</span><b id="sWeek">0분</b></div>
+    </div>
+    <ul class="sessions" id="sessions"></ul>
+  </section>
+
+  <section class="card">
+    <div class="head">
+      <div>
+        <div class="title">오늘의 공부 음악</div>
+        <div class="sub" id="today"></div>
+      </div>
+      <label class="switch"><input type="checkbox" id="link"> 타이머와 연동</label>
+    </div>
+    <div class="player"><div id="yt"></div></div>
+    <ul class="tracks" id="tracks"></ul>
+    <div class="row">
+      <button class="btn" id="bPrev">이전</button>
+      <button class="btn primary" id="bPlay">재생</button>
+      <button class="btn" id="bNext">다음</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ===== 음악 후보 목록: 여기에 유튜브 영상 ID를 추가/삭제하면 됩니다 =====
+   매일 날짜를 기준으로 이 목록에서 3개가 무작위로 뽑힙니다.
+   재생이 막힌 영상은 자동으로 건너뛰고 다른 후보로 교체됩니다. */
+const POOL = [
+  { id: 'jfKfPfyJRdk', genre: 'Lo-fi' },
+  { id: 'lTRiuFIWV54', genre: 'Lo-fi' },
+  { id: '4xDzrJKXOOY', genre: 'Synthwave' },
+  { id: 'ymr7JQupPvw', genre: 'Classical' },
+  { id: 'pzQqvi1-hHE', genre: 'Classical · Mozart' },
+  { id: 'kj_UETbqHuI', genre: 'Classical · Piano' },
+  { id: 'NqTN3FGiUW0', genre: 'Classical · Vivaldi' },
+  { id: 'xoYkGH95_d4', genre: 'Classical' }
+];
+const FOCUS = 25 * 60, BREAK = 5 * 60, CIRC = 2 * Math.PI * 84;
+
+const $ = id => document.getElementById(id);
+const load = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const kst = (t = Date.now()) => new Date(t + 9 * 3600e3).toISOString().slice(0, 10);
+const fmtClock = s => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`; };
+const fmtDur = s => { const m = Math.round(s / 60), h = Math.floor(m / 60); return h ? `${h}시간 ${m % 60}분` : `${m}분`; };
+
+/* ===== 타이머 ===== */
+let st = load('sw_state', { mode: 'stopwatch', running: false, startedAt: 0, acc: 0, phase: 'focus', tag: '' });
+const persist = () => save('sw_state', st);
+const elapsed = () => st.acc + (st.running ? (Date.now() - st.startedAt) / 1000 : 0);
+const getLog = d => load('sw_log_' + d, { total: 0, pomos: 0, sessions: [] });
+
+function record(sec, isPomo) {
+  if (sec < 60) return;
+  const d = kst(), l = getLog(d);
+  l.total += Math.round(sec);
+  if (isPomo) l.pomos++;
+  l.sessions.unshift({ end: Date.now(), sec: Math.round(sec), tag: st.tag || '', pomo: !!isPomo });
+  l.sessions = l.sessions.slice(0, 40);
+  save('sw_log_' + d, l);
+  renderStats();
+}
+
+function chime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach((t, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = [660, 880, 990][i];
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.35);
+      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.4);
+    });
+  } catch (e) {}
+}
+
+function start() {
+  if (st.running) return;
+  st.running = true; st.startedAt = Date.now(); persist();
+  if (linked() && st.phase === 'focus') musicPlay();
+  render();
+}
+function pause() {
+  if (!st.running) return;
+  st.acc = elapsed(); st.running = false; persist();
+  if (linked()) musicPause();
+  render();
+}
+function clearTimer() { st.running = false; st.acc = 0; st.startedAt = 0; st.phase = 'focus'; persist(); }
+function finish() {
+  if (st.phase === 'focus') record(elapsed(), false);
+  clearTimer(); if (linked()) musicPause(); render();
+}
+function reset() {
+  if (elapsed() > 60 && !confirm('기록하지 않고 초기화할까요?')) return;
+  clearTimer(); if (linked()) musicPause(); render();
+}
+function setMode(m) {
+  if (st.running || st.acc > 0) return;
+  st.mode = m; persist(); render();
+}
+
+function tick() {
+  if (st.mode === 'pomodoro' && st.running) {
+    const target = st.phase === 'focus' ? FOCUS : BREAK;
+    if (elapsed() >= target) {
+      chime();
+      if (st.phase === 'focus') {
+        record(FOCUS, true);
+        st.phase = 'break'; st.acc = 0; st.startedAt = Date.now(); st.running = true;
+      } else {
+        st.phase = 'focus'; st.acc = 0; st.running = false;
+        if (linked()) musicPause();
+      }
+      persist();
+    }
+  }
+  render();
+}
+
+function render() {
+  const e = elapsed(), card = $('timerCard');
+  let shown, frac, label;
+  if (st.mode === 'pomodoro') {
+    const target = st.phase === 'focus' ? FOCUS : BREAK;
+    shown = target - e; frac = e / target;
+    label = st.phase === 'break' ? '휴식 5분' : (st.running ? '집중 중' : (e > 0 ? '일시정지' : '집중 25분'));
+  } else {
+    shown = e; frac = (e % 3600) / 3600;
+    label = st.running ? '공부 중' : (e > 0 ? '일시정지' : '대기 중');
+  }
+  card.classList.toggle('break', st.mode === 'pomodoro' && st.phase === 'break');
+  $('time').textContent = fmtClock(shown);
+  $('phase').textContent = label;
+  $('ring').style.strokeDasharray = CIRC;
+  $('ring').style.strokeDashoffset = CIRC * (1 - Math.min(1, Math.max(0, frac)));
+  $('bStart').textContent = st.running ? '일시정지' : (e > 0 ? '계속' : '시작');
+  $('mStop').classList.toggle('on', st.mode === 'stopwatch');
+  $('mPomo').classList.toggle('on', st.mode === 'pomodoro');
+  const busy = st.running || st.acc > 0;
+  $('mStop').disabled = $('mPomo').disabled = busy && true;
+  if (busy) { $(st.mode === 'stopwatch' ? 'mStop' : 'mPomo').disabled = false; }
+  document.title = st.running ? `${fmtClock(shown)} · ${label}` : 'Study Timer';
+}
+
+let lastDay = kst();
+function renderStats() {
+  const d = kst(), l = getLog(d);
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += getLog(kst(Date.now() - i * 864e5)).total;
+  $('sToday').textContent = fmtDur(l.total);
+  $('sPomo').textContent = `${l.pomos}개`;
+  $('sWeek').textContent = fmtDur(week);
+  $('sessions').innerHTML = l.sessions.map(s => {
+    const t = new Date(s.end + 9 * 3600e3).toISOString().slice(11, 16);
+    const tag = (s.tag || (s.pomo ? '포모도로' : '공부')).replace(/[<>&]/g, '');
+    return `<li><span>${t}</span><span>${s.pomo ? '🍅 ' : ''}${tag}</span><span>${fmtDur(s.sec)}</span></li>`;
+  }).join('') || '<li><span class="sub">오늘 기록이 아직 없습니다</span></li>';
+}
+
+$('bStart').onclick = () => st.running ? pause() : start();
+$('bFinish').onclick = finish;
+$('bReset').onclick = reset;
+$('mStop').onclick = () => setMode('stopwatch');
+$('mPomo').onclick = () => setMode('pomodoro');
+$('tag').value = st.tag || '';
+$('tag').oninput = e => { st.tag = e.target.value; persist(); };
+
+/* ===== 음악 ===== */
+const linkBox = $('link');
+linkBox.checked = load('sw_link', true);
+linkBox.onchange = () => save('sw_link', linkBox.checked);
+const linked = () => linkBox.checked;
+
+function rng(seed) {
+  let h = 1779033703 ^ seed.length;
+  for (let i = 0; i < seed.length; i++) { h = Math.imul(h ^ seed.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
+  return () => { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+}
+const bad = new Set(load('sw_bad', []));
+const titles = load('sw_titles', {});
+const r = rng('music-' + kst());
+const order = POOL.filter(p => !bad.has(p.id)).map(p => ({ p, k: r() })).sort((a, b) => a.k - b.k).map(x => x.p);
+const picks = order.slice(0, 3), spare = order.slice(3);
+let cur = 0, player = null, ready = false, playing = false;
+
+$('today').textContent = kst().replace(/-/g, '.') + ' · 매일 자정에 새로 뽑힙니다';
+
+function renderTracks() {
+  $('tracks').innerHTML = picks.map((p, i) =>
+    `<li class="${i === cur ? 'on' : ''}" data-i="${i}"><span class="no">${i + 1}</span>
+     <div style="min-width:0"><div class="t">${(titles[p.id] || '불러오는 중…').replace(/[<>&]/g, '')}</div><div class="g">${p.genre}</div></div></li>`).join('');
+  [...$('tracks').children].forEach(li => li.onclick = () => playTrack(+li.dataset.i));
+  $('bPlay').textContent = playing ? '정지' : '재생';
+}
+function playTrack(i) { cur = (i + picks.length) % picks.length; if (ready) player.loadVideoById(picks[cur].id); renderTracks(); }
+function musicPlay() { if (ready) player.playVideo(); }
+function musicPause() { if (ready) player.pauseVideo(); }
+
+$('bPrev').onclick = () => playTrack(cur - 1);
+$('bNext').onclick = () => playTrack(cur + 1);
+$('bPlay').onclick = () => playing ? musicPause() : musicPlay();
+
+window.onYouTubeIframeAPIReady = () => {
+  player = new YT.Player('yt', {
+    videoId: picks[0] && picks[0].id,
+    playerVars: { rel: 0, playsinline: 1, modestbranding: 1 },
+    events: {
+      onReady: () => { ready = true; prefetchTitles(); },
+      onStateChange: ev => {
+        playing = ev.data === YT.PlayerState.PLAYING;
+        if (playing) {
+          const t = player.getVideoData && player.getVideoData().title;
+          if (t) { titles[picks[cur].id] = t; save('sw_titles', titles); }
+        }
+        if (ev.data === YT.PlayerState.ENDED) playTrack(cur + 1);
+        renderTracks();
+      },
+      onError: () => {
+        bad.add(picks[cur].id); save('sw_bad', [...bad]);
+        const next = spare.shift();
+        if (next) { picks[cur] = next; player.loadVideoById(next.id); }
+        else { picks.splice(cur, 1); cur = 0; if (picks.length) player.cueVideoById(picks[0].id); }
+        renderTracks();
+      }
+    }
+  });
+};
+/* 제목을 미리 받아와 목록에 표시 (oEmbed, 실패해도 재생에는 영향 없음) */
+function prefetchTitles() {
+  picks.forEach(p => {
+    if (titles[p.id]) return;
+    fetch(`https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${p.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j && j.title) { titles[p.id] = j.title; save('sw_titles', titles); renderTracks(); } })
+      .catch(() => {});
+  });
+}
+
+const s = document.createElement('script');
+s.src = 'https://www.youtube.com/iframe_api';
+document.head.appendChild(s);
+
+/* ===== 시작 ===== */
+renderStats(); renderTracks(); render();
+setInterval(() => { tick(); if (kst() !== lastDay) { lastDay = kst(); renderStats(); } }, 500);
+</script>
+</body>
+</html>
