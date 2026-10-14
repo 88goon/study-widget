@@ -392,7 +392,7 @@ function attach(url) {
   }
   const pr = audio.play(); if (pr && pr.catch) pr.catch(() => {});
 }
-async function start() {
+async function startStream() {
   const p = list()[cur]; if (!p) return;
   failMsg = ''; wantPlay = true; renderTracks();
   if (p.yt) { detach(); return startYT(p); }
@@ -424,9 +424,9 @@ function playTrack(i, play) {
   const was = wantPlay || play;
   cur = (i + L.length) % L.length; failMsg = '';
   detach(); playing = false; wantPlay = false;
-  if (was) start(); else renderTracks();
+  if (was) startStream(); else renderTracks();
 }
-function musicPlay() { if (!wantPlay) start(); }
+function musicPlay() { if (!wantPlay) startStream(); }
 function musicPause() { wantPlay = false; failMsg = ''; detach(); playing = false; renderTracks(); }
 
 audio.addEventListener('playing', () => { playing = true; failMsg = ''; renderTracks(); });
