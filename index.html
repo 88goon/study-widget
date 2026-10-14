@@ -48,8 +48,18 @@
   .sessions li{display:flex;justify-content:space-between;gap:8px;padding:5px 2px;border-bottom:1px dashed var(--line);font-size:12px}
   .sessions li span:first-child{color:var(--muted);white-space:nowrap}
   .sessions li span:nth-child(2){flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .player{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000}
-  .player>*{position:absolute;inset:0;width:100%;height:100%}
+  .player{position:relative;width:100%;height:150px;border-radius:10px;overflow:hidden;
+    background:linear-gradient(135deg,var(--accent) 0%,#1f3f57 100%);color:#fff}
+  .now{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:0 16px}
+  .nowname{font-size:18px;font-weight:700}
+  .nowsub{font-size:12px;opacity:.85}
+  .eq{display:flex;gap:4px;align-items:flex-end;height:26px}
+  .eq i{width:5px;height:6px;background:#fff;border-radius:2px;opacity:.9}
+  .playing .eq i{animation:eq 1s ease-in-out infinite}
+  .eq i:nth-child(2){animation-delay:.2s}.eq i:nth-child(3){animation-delay:.4s}
+  .eq i:nth-child(4){animation-delay:.1s}.eq i:nth-child(5){animation-delay:.3s}
+  @keyframes eq{0%,100%{height:6px}50%{height:26px}}
+  @media (prefers-reduced-motion:reduce){.playing .eq i{animation:none;height:16px}}
   .tracks{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
   .tracks li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:var(--bg);border:1px solid var(--line);cursor:pointer}
   .tracks li.on{border-color:var(--accent);background:var(--accent-soft)}
@@ -103,36 +113,80 @@
   <section class="card">
     <div class="head">
       <div>
-        <div class="title">오늘의 공부 음악</div>
+        <div class="seg" style="margin-bottom:6px">
+          <button id="tMusic" class="on">오늘의 음악</button>
+          <button id="tRadio">국내 라디오</button>
+        </div>
         <div class="sub" id="today"></div>
       </div>
       <label class="switch"><input type="checkbox" id="link"> 타이머와 연동</label>
     </div>
-    <div class="player"><div id="yt"></div></div>
+    <div class="player" id="stage">
+      <div class="now">
+        <div class="eq"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="nowname" id="nowName">-</div>
+        <div class="nowsub" id="nowSub">재생 버튼을 누르세요</div>
+      </div>
+    </div>
+    <audio id="audio" preload="none"></audio>
     <ul class="tracks" id="tracks"></ul>
     <div class="row">
       <button class="btn" id="bPrev">이전</button>
       <button class="btn primary" id="bPlay">재생</button>
       <button class="btn" id="bNext">다음</button>
     </div>
+    <div class="row">
+      <span class="sub">볼륨</span>
+      <input type="range" id="vol" min="0" max="1" step="0.05" style="flex:1;accent-color:var(--accent)">
+    </div>
   </section>
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.13/dist/hls.min.js"></script>
 <script>
-/* ===== 음악 후보 목록: 여기에 유튜브 영상 ID를 추가/삭제하면 됩니다 =====
-   매일 날짜를 기준으로 이 목록에서 3개가 무작위로 뽑힙니다.
-   재생이 막힌 영상은 자동으로 건너뛰고 다른 후보로 교체됩니다. */
+/* ===== 음악 후보 목록 (광고 없는 인터넷 라디오) =====
+   매일 날짜를 기준으로 이 목록에서 3개 채널이 무작위로 뽑힙니다.
+   urls는 순서대로 시도하며, 모두 실패한 채널은 자동으로 다른 후보로 교체됩니다.
+   SomaFM: 청취자 후원으로 운영되는 광고 없는 라디오 / Radio Swiss: 광고 없는 스위스 공영 라디오 */
+const soma = id => [`https://ice1.somafm.com/${id}-128-mp3`, `https://ice2.somafm.com/${id}-128-mp3`,
+  `https://ice4.somafm.com/${id}-128-mp3`, `https://ice1.somafm.com/${id}-128-aac`, `https://ice1.somafm.com/${id}-64-aac`];
+const swiss = ch => [`https://stream.srg-ssr.ch/srgssr/${ch}/mp3/128`, `https://stream.srg-ssr.ch/m/${ch}/mp3_128`,
+  `https://stream.srg-ssr.ch/srgssr/${ch}/aac/96`];
 const POOL = [
-  { id: 'jfKfPfyJRdk', genre: 'Lo-fi' },
-  { id: 'lTRiuFIWV54', genre: 'Lo-fi' },
-  { id: '4xDzrJKXOOY', genre: 'Synthwave' },
-  { id: 'ymr7JQupPvw', genre: 'Classical' },
-  { id: 'pzQqvi1-hHE', genre: 'Classical · Mozart' },
-  { id: 'kj_UETbqHuI', genre: 'Classical · Piano' },
-  { id: 'NqTN3FGiUW0', genre: 'Classical · Vivaldi' },
-  { id: 'xoYkGH95_d4', genre: 'Classical' }
+  { id: 'groovesalad',   name: 'Groove Salad',      genre: '앰비언트 · 다운템포',  urls: soma('groovesalad') },
+  { id: 'dronezone',     name: 'Drone Zone',        genre: '앰비언트 · 집중용',    urls: soma('dronezone') },
+  { id: 'deepspaceone',  name: 'Deep Space One',    genre: '딥 앰비언트',          urls: soma('deepspaceone') },
+  { id: 'fluid',         name: 'Fluid',             genre: '인스트루멘탈 힙합 · Lo-fi', urls: soma('fluid') },
+  { id: 'sonicuniverse', name: 'Sonic Universe',    genre: '재즈 · 누재즈',        urls: soma('sonicuniverse') },
+  { id: 'spacestation',  name: 'Space Station Soma',genre: '일렉트로닉 · 앰비언트', urls: soma('spacestation') },
+  { id: 'synphaera',     name: 'Synphaera',         genre: '모던 일렉트로닉 앰비언트', urls: soma('synphaera') },
+  { id: 'secretagent',   name: 'Secret Agent',      genre: '라운지 · 다운템포',    urls: soma('secretagent') },
+  { id: 'rsc',           name: 'Radio Swiss Classic', genre: '클래식',             urls: swiss('rsc_de') },
+  { id: 'rsj',           name: 'Radio Swiss Jazz',  genre: '재즈',                 urls: swiss('rsj') }
 ];
+/* ===== 국내 라디오 (고정 채널) =====
+   urls: 고정 주소 후보, resolve: 방송사 API에서 그때그때 주소를 받아오는 채널 */
+const RADIO = [
+  { id: 'ytn',  name: 'YTN 라디오',   genre: 'FM 94.5 · 시사 뉴스',
+    urls: ['https://radiolive.ytn.co.kr/radio/_definst_/20211118_fmlive/playlist.m3u8'] },
+  { id: 'msfm', name: 'MBC 표준FM',   genre: 'FM 95.9 · 시사 · 교양',
+    resolve: () => mbc('sfm') },
+  { id: 'mfm',  name: 'MBC FM4U',     genre: 'FM 91.9 · 음악',
+    resolve: () => mbc('mfm') },
+  { id: 'cbs',  name: 'CBS 음악FM',   genre: 'FM 93.9 · 음악',
+    urls: ['https://aac.cbs.co.kr/cbs939/_definst_/cbs939.stream/playlist.m3u8',
+           'https://aac.cbs.co.kr/cbs981/_definst_/cbs981.stream/playlist.m3u8'] }
+];
+/* MBC는 접속할 때마다 새 주소(토큰)를 발급하므로 API를 먼저 호출 */
+const MBC_PROXY = '';   /* 막힐 경우 중계 주소를 넣으면 됩니다 (예: https://xxx.workers.dev/?u=) */
+async function mbc(ch) {
+  const api = `https://sminiplay.imbc.com/aacplay.ashx?agent=webapp&channel=${ch}`;
+  const res = await fetch(MBC_PROXY ? MBC_PROXY + encodeURIComponent(api) : api);
+  const url = (await res.text()).trim();
+  if (!/^https?:\/\//.test(url)) throw new Error('bad url');
+  return [url];
+}
 const FOCUS = 25 * 60, BREAK = 5 * 60, CIRC = 2 * Math.PI * 84;
 
 const $ = id => document.getElementById(id);
@@ -274,7 +328,7 @@ $('mPomo').onclick = () => setMode('pomodoro');
 $('tag').value = st.tag || '';
 $('tag').oninput = e => { st.tag = e.target.value; persist(); };
 
-/* ===== 음악 ===== */
+/* ===== 음악 · 라디오 ===== */
 const linkBox = $('link');
 linkBox.checked = load('sw_link', true);
 linkBox.onchange = () => save('sw_link', linkBox.checked);
@@ -285,69 +339,106 @@ function rng(seed) {
   for (let i = 0; i < seed.length; i++) { h = Math.imul(h ^ seed.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
   return () => { h = Math.imul(h ^ h >>> 16, 2246822507); h = Math.imul(h ^ h >>> 13, 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
 }
-const bad = new Set(load('sw_bad', []));
-const titles = load('sw_titles', {});
+const bad = new Set(load('sw_bad_' + kst(), []));
 const r = rng('music-' + kst());
 const order = POOL.filter(p => !bad.has(p.id)).map(p => ({ p, k: r() })).sort((a, b) => a.k - b.k).map(x => x.p);
 const picks = order.slice(0, 3), spare = order.slice(3);
-let cur = 0, player = null, ready = false, playing = false;
+const audio = $('audio');
+let tab = load('sw_tab', 'music');
+let cur = 0, urls = [], urlIdx = 0, playing = false, wantPlay = false, hls = null, failMsg = '';
+const list = () => tab === 'music' ? picks : RADIO;
 
-$('today').textContent = kst().replace(/-/g, '.') + ' · 매일 자정에 새로 뽑힙니다';
+audio.volume = load('sw_vol', 0.6);
+$('vol').value = audio.volume;
+$('vol').oninput = e => { audio.volume = +e.target.value; save('sw_vol', audio.volume); };
 
 function renderTracks() {
-  $('tracks').innerHTML = picks.map((p, i) =>
+  const L = list(), p = L[cur];
+  $('tMusic').classList.toggle('on', tab === 'music');
+  $('tRadio').classList.toggle('on', tab === 'radio');
+  $('today').textContent = tab === 'music'
+    ? kst().replace(/-/g, '.') + ' · 광고 없는 채널 3개, 매일 자정에 교체'
+    : '실시간 방송 · 방송사 자체 광고는 나올 수 있어요';
+  $('tracks').innerHTML = L.map((x, i) =>
     `<li class="${i === cur ? 'on' : ''}" data-i="${i}"><span class="no">${i + 1}</span>
-     <div style="min-width:0"><div class="t">${(titles[p.id] || '불러오는 중…').replace(/[<>&]/g, '')}</div><div class="g">${p.genre}</div></div></li>`).join('');
-  [...$('tracks').children].forEach(li => li.onclick = () => playTrack(+li.dataset.i));
-  $('bPlay').textContent = playing ? '정지' : '재생';
-}
-function playTrack(i) { cur = (i + picks.length) % picks.length; if (ready) player.loadVideoById(picks[cur].id); renderTracks(); }
-function musicPlay() { if (ready) player.playVideo(); }
-function musicPause() { if (ready) player.pauseVideo(); }
-
-$('bPrev').onclick = () => playTrack(cur - 1);
-$('bNext').onclick = () => playTrack(cur + 1);
-$('bPlay').onclick = () => playing ? musicPause() : musicPlay();
-
-window.onYouTubeIframeAPIReady = () => {
-  player = new YT.Player('yt', {
-    videoId: picks[0] && picks[0].id,
-    playerVars: { rel: 0, playsinline: 1, modestbranding: 1 },
-    events: {
-      onReady: () => { ready = true; prefetchTitles(); },
-      onStateChange: ev => {
-        playing = ev.data === YT.PlayerState.PLAYING;
-        if (playing) {
-          const t = player.getVideoData && player.getVideoData().title;
-          if (t) { titles[picks[cur].id] = t; save('sw_titles', titles); }
-        }
-        if (ev.data === YT.PlayerState.ENDED) playTrack(cur + 1);
-        renderTracks();
-      },
-      onError: () => {
-        bad.add(picks[cur].id); save('sw_bad', [...bad]);
-        const next = spare.shift();
-        if (next) { picks[cur] = next; player.loadVideoById(next.id); }
-        else { picks.splice(cur, 1); cur = 0; if (picks.length) player.cueVideoById(picks[0].id); }
-        renderTracks();
-      }
-    }
-  });
-};
-/* 제목을 미리 받아와 목록에 표시 (oEmbed, 실패해도 재생에는 영향 없음) */
-function prefetchTitles() {
-  picks.forEach(p => {
-    if (titles[p.id]) return;
-    fetch(`https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v=${p.id}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(j => { if (j && j.title) { titles[p.id] = j.title; save('sw_titles', titles); renderTracks(); } })
-      .catch(() => {});
-  });
+     <div style="min-width:0"><div class="t">${x.name}</div><div class="g">${x.genre}</div></div></li>`).join('');
+  [...$('tracks').children].forEach(li => li.onclick = () => playTrack(+li.dataset.i, true));
+  $('nowName').textContent = p ? p.name : '재생 가능한 채널이 없습니다';
+  $('nowSub').textContent = !p ? '' : failMsg ? failMsg
+    : playing ? `${p.genre} · 재생 중` : wantPlay ? '연결 중…' : p.genre;
+  $('stage').classList.toggle('playing', playing);
+  $('bPlay').textContent = playing || wantPlay ? '정지' : '재생';
 }
 
-const s = document.createElement('script');
-s.src = 'https://www.youtube.com/iframe_api';
-document.head.appendChild(s);
+function detach() {
+  if (hls) { hls.destroy(); hls = null; }
+  audio.pause(); audio.removeAttribute('src'); audio.load();
+}
+function attach(url) {
+  detach();
+  if (/\.m3u8/.test(url) && window.Hls && Hls.isSupported()) {
+    hls = new Hls({ lowLatencyMode: false });
+    hls.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) onFail(); });
+    hls.loadSource(url); hls.attachMedia(audio);
+  } else {
+    audio.src = url;
+  }
+  const pr = audio.play(); if (pr && pr.catch) pr.catch(() => {});
+}
+async function start() {
+  const p = list()[cur]; if (!p) return;
+  failMsg = ''; wantPlay = true; renderTracks();
+  try { urls = p.resolve ? await p.resolve() : p.urls; }
+  catch (e) { urls = []; }
+  if (!wantPlay || list()[cur] !== p) return;
+  urlIdx = 0;
+  if (!urls.length) return giveUp(p);
+  attach(urls[0]);
+}
+function onFail() {
+  if (!wantPlay) return;
+  const p = list()[cur];
+  if (urlIdx + 1 < urls.length) { urlIdx++; attach(urls[urlIdx]); return; }
+  giveUp(p);
+}
+function giveUp(p) {
+  detach(); playing = false;
+  if (tab === 'music') {
+    bad.add(p.id); save('sw_bad_' + kst(), [...bad]);
+    const next = spare.shift();
+    if (next) { picks[cur] = next; return start(); }
+    picks.splice(cur, 1); cur = 0;
+    wantPlay = false; renderTracks(); return;
+  }
+  wantPlay = false;
+  failMsg = p.resolve ? '방송사가 외부 재생을 막고 있어요 (중계 설정 필요)' : '지금은 연결할 수 없어요';
+  renderTracks();
+}
+function playTrack(i, play) {
+  const L = list(); if (!L.length) return;
+  const was = wantPlay || play;
+  cur = (i + L.length) % L.length; failMsg = '';
+  detach(); playing = false; wantPlay = false;
+  if (was) start(); else renderTracks();
+}
+function musicPlay() { if (!wantPlay) start(); }
+function musicPause() { wantPlay = false; failMsg = ''; detach(); playing = false; renderTracks(); }
+function setTab(t) {
+  if (tab === t) return;
+  const was = wantPlay; musicPause();
+  tab = t; save('sw_tab', t); cur = 0;
+  if (was) start(); else renderTracks();
+}
+
+audio.addEventListener('playing', () => { playing = true; failMsg = ''; renderTracks(); });
+audio.addEventListener('pause', () => { playing = false; renderTracks(); });
+audio.addEventListener('error', () => { if (audio.getAttribute('src')) onFail(); });
+
+$('tMusic').onclick = () => setTab('music');
+$('tRadio').onclick = () => setTab('radio');
+$('bPrev').onclick = () => playTrack(cur - 1, false);
+$('bNext').onclick = () => playTrack(cur + 1, false);
+$('bPlay').onclick = () => (playing || wantPlay) ? musicPause() : musicPlay();
 
 /* ===== 시작 ===== */
 renderStats(); renderTracks(); render();
